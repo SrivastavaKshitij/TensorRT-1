@@ -87,7 +87,10 @@ class TensorQuantizer(nn.Module):
 
         if quant_desc.amax is not None:
             self.register_buffer('_amax', torch.tensor(quant_desc.amax))
-
+        else:
+            # register amax even when it is being computed dynamically. initialized with a random value, so that
+            # loading from ckpt doesnt fail.
+            self.register_buffer('_amax',torch.tensor(1))
         # Clip module consumes a lot of memory, so only create it if learn_amax is True
         if self._learn_amax:
             init_amax = quant_desc.amax if quant_desc.amax is not None else 1.
@@ -270,6 +273,7 @@ class TensorQuantizer(nn.Module):
                     if not i in axis:
                         reduce_axis.append(i)
             amax = quant_utils.reduce_amax(inputs, axis=reduce_axis, keepdims=True).detach()
+        self._amax = amax
         if self._scale_amax is not None:
             amax = amax.detach() * self._scale_amax
 
