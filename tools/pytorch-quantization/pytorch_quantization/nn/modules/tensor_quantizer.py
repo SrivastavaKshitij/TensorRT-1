@@ -260,19 +260,19 @@ class TensorQuantizer(nn.Module):
 
     def _get_amax(self, inputs):
         """get amax from buffer or compute it dynamically."""
-        if hasattr(self, '_amax'):
-            amax = self._amax
+        """ Removing option of getting amax from buffer as amax needs to be updated and stored when computed
+        dynamically"""
+
+        if self._axis is None:
+            reduce_axis = None
         else:
-            if self._axis is None:
-                reduce_axis = None
-            else:
-                reduce_axis = []
-                # Swap axis to reduce
-                axis = self._axis if isinstance(self._axis, (list, tuple)) else [self._axis]
-                for i in range(inputs.dim()):
-                    if not i in axis:
-                        reduce_axis.append(i)
-            amax = quant_utils.reduce_amax(inputs, axis=reduce_axis, keepdims=True).detach()
+            reduce_axis = []
+            # Swap axis to reduce
+            axis = self._axis if isinstance(self._axis, (list, tuple)) else [self._axis]
+            for i in range(inputs.dim()):
+                if not i in axis:
+                    reduce_axis.append(i)
+        amax = quant_utils.reduce_amax(inputs, axis=reduce_axis, keepdims=True).detach()
         self._amax = amax
         if self._scale_amax is not None:
             amax = amax.detach() * self._scale_amax
