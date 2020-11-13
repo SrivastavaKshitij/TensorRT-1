@@ -93,6 +93,48 @@ class QuantMixin():
         return self._weight_quantizer
     # pylint:enable=missing-docstring
 
+class QuantWeightMixin():
+    """Mixin class for adding basic quantization logic to quantized modules"""
+
+    default_quant_desc_weight = QUANT_DESC_8BIT_PER_TENSOR
+
+    @classmethod
+    def set_default_quant_desc_input(cls, value):
+        """
+        Args:
+            value: An instance of :class:`QuantDescriptor <pytorch_quantization.tensor_quant.QuantDescriptor>`
+        """
+        if not isinstance(value, QuantDescriptor):
+            raise ValueError("{} is not an instance of QuantDescriptor!")
+        cls.default_quant_desc_weight = copy.deepcopy(value)
+
+    def init_quantizer(self, quant_desc_weight):
+        """Helper function for __init__ of simple quantized module
+
+        Create weight quantizer based on quant_desc passed by kwargs, or default of the class.
+
+        Args:
+            quant_desc_weight: An instance of :class:`QuantDescriptor <pytorch_quantization.tensor_quant.QuantDescriptor>`
+        """
+        if not inspect.stack()[1].function == "__init__":
+            raise TypeError("{} should be only called by __init__ of quantized module.".format(__name__))
+        self._fake_quant = True
+        if not quant_desc_weight.fake_quant:
+            raise ValueError("Only fake quantization is supported!")
+
+        logging.info("Input is %squantized to %d bits in %s with axis %s!", ""
+                     if not quant_desc_weight.fake_quant else "fake ",
+                     quant_desc_weight.num_bits, self.__class__.__name__, quant_desc_input.axis)
+
+        self._weight_quantizer = TensorQuantizer(quant_desc_weight)
+
+    # pylint:disable=missing-docstring
+    @property
+    def weight_quantizer(self):
+        return self._weight_quantizer
+    # pylint:enable=missing-docstring
+
+
 
 class QuantInputMixin():
     """Mixin class for adding basic quantization logic to quantized modules"""
@@ -136,7 +178,7 @@ class QuantInputMixin():
     # pylint:enable=missing-docstring
 
 
-def pop_quant_desc_in_kwargs(quant_cls, input_only=False, **kwargs):
+def pop_quant_desc_in_kwargs(quant_cls, input_only=False,weight_only=False, **kwargs):
     """Pop quant descriptors in kwargs
 
     If there is no descriptor in kwargs, the default one in quant_cls will be used
@@ -151,9 +193,14 @@ def pop_quant_desc_in_kwargs(quant_cls, input_only=False, **kwargs):
        quant_desc_weight: An instance of :class:`QuantDescriptor <pytorch_quantization.tensor_quant.QuantDescriptor>`.
            Quantization descriptor of weight.
     """
-    quant_desc_input = kwargs.pop('quant_desc_input', quant_cls.default_quant_desc_input)
-    if not input_only:
+    if input_only:
+        quant_desc_input = kwargs.pop('quant_desc_input', quant_cls.default_quant_desc_input)
+    elif weight_only:
         quant_desc_weight = kwargs.pop('quant_desc_weight', quant_cls.default_quant_desc_weight)
+    else:
+        quant_desc_input = kwargs.pop('quant_desc_input', quant_cls.default_quant_desc_input)
+        quant_desc_weight = kwargs.pop('quant_desc_weight', quant_cls.default_quant_desc_weight)
+  
 
     # Check if anything is left in **kwargs
     if kwargs:
@@ -161,4 +208,8 @@ def pop_quant_desc_in_kwargs(quant_cls, input_only=False, **kwargs):
 
     if input_only:
         return quant_desc_input
+    
+    if weight_only:
+        return quant_desc_weight
+
     return quant_desc_input, quant_desc_weight
